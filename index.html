@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Jadual Aktiviti Tugas</title>
+    <!-- Memuatkan Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Memuatkan fon Inter dari Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Memuatkan ikon Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .task-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            font-size: 0.7rem;
+            line-height: 1rem;
+            padding: 4px 6px;
+        }
+        .task-card:hover {
+            transform: translateY(-2px);
+            z-index: 10;
+        }
+        .empty-slot {
+            background-color: #f0fdf4; 
+        }
+        .gradient-bg {
+            background-image: linear-gradient(to top right, #fecaca 0%, #ef4444 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .calendar-day {
+            min-height: 100px; /* Tinggi untuk mobile */
+            transition: background-color 0.3s;
+        }
+        @media (min-width: 1024px) { /* lg breakpoint */
+            .calendar-day {
+                min-height: 120px; /* Tinggi untuk desktop */
+            }
+        }
+        .weekend-day {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .other-month-day {
+            background: rgba(255, 255, 255, 0.1);
+            color: #9ca3af;
+        }
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes fade-out-down {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(20px); }
+        }
+        .animate-fade-in-up {
+            animation: fade-in-up 0.3s ease-out forwards;
+        }
+        .toast-notification {
+            animation: fade-in-up 0.5s, fade-out-down 0.5s 3.5s;
+        }
+        /* Loading Spinner */
+        #loading-overlay {
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .loader {
+            border-top-color: #ef4444;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="gradient-bg text-slate-800">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-32 w-32"></div>
+    </div>
+
+    <!-- Mesej Ralat Konfigurasi telah dialih keluar kerana kita akan masukkan konfigurasi terus -->
+
+    <div id="app-container" class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="text-center mb-10 flex flex-col sm:flex-row items-center justify-center gap-6">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Kementerian_Pendidikan_Malaysia.png" alt="Logo Kementerian Pendidikan Malaysia" class="h-24 w-auto">
+            <div class="text-center sm:text-left">
+                <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-white flex items-center justify-center sm:justify-start gap-3">
+                    <span>PASUKAN TEKNIKAL ICT SEKOLAH ZON KUALA PEGANG</span>
+                </h1>
+                <p class="mt-2 text-md text-white/80">Pelan Tugasan PTIS Zon Kuala Pegang</p>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- Bahagian Kalendar -->
+            <div class="lg:col-span-8">
+                <div class="flex justify-between items-center mb-4 glass-effect p-3 rounded-xl shadow-lg">
+                    <button id="prevMonthBtn" class="px-4 py-2 bg-white/50 rounded-md hover:bg-white/80 transition-colors flex items-center gap-2"><i data-lucide="arrow-left" class="w-4 h-4"></i> Bulan Lepas</button>
+                    <h2 id="monthYear" class="text-lg md:text-xl font-bold text-slate-700 text-center"></h2>
+                    <button id="nextMonthBtn" class="px-4 py-2 bg-white/50 rounded-md hover:bg-white/80 transition-colors flex items-center gap-2">Bulan Depan <i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+                </div>
+                <div id="calendarGrid" class="grid grid-cols-7 gap-1 bg-white/30 p-2 rounded-xl">
+                    <!-- Sel Kalendar akan dijana oleh JavaScript -->
+                </div>
+            </div>
+
+            <!-- Bahagian Borang -->
+            <div id="form-section" class="lg:col-span-4">
+                <div class="glass-effect p-6 rounded-2xl shadow-xl sticky top-8">
+                    <h2 class="text-2xl font-semibold mb-6 border-b border-white/50 pb-3 flex items-center gap-2">
+                        <i data-lucide="file-plus-2"></i>
+                        <span>Tambah Tugasan Baru</span>
+                    </h2>
+                    <form id="taskForm" class="space-y-4">
+                        <div>
+                            <label for="taskDate" class="block text-sm font-medium text-slate-700 mb-1">Tarikh</label>
+                            <input type="date" id="taskDate" name="taskDate" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                        </div>
+                        <div>
+                            <label for="taskSchool" class="block text-sm font-medium text-slate-700 mb-1">Sekolah</label>
+                            <select id="taskSchool" name="taskSchool" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                                 <option value="" disabled selected>Pilih Sekolah</option>
+                                <option value="SEKOLAH KEBANGSAAN SYED SHEH">SEKOLAH KEBANGSAAN SYED SHEH</option>
+                                <option value="SEKOLAH KEBANGSAAN KUALA KUANG">SEKOLAH KEBANGSAAN KUALA KUANG</option>
+                                <option value="SEKOLAH KEBANGSAAN BADANG">SEKOLAH KEBANGSAAN BADANG</option>
+                                <option value="SEKOLAH MENENGAH KEBANGSAAN JERAI">SEKOLAH MENENGAH KEBANGSAAN JERAI</option>
+                                <option value="SEKOLAH JENIS KEBANGSAAN (CINA) KONG MIN">SEKOLAH JENIS KEBANGSAAN (CINA) KONG MIN</option>
+                                <option value="SEKOLAH KEBANGSAAN MALAU">SEKOLAH KEBANGSAAN MALAU</option>
+                                <option value="SEKOLAH MENENGAH KEBANGSAAN KUALA PEGANG">SEKOLAH MENENGAH KEBANGSAAN KUALA PEGANG</option>
+                                <option value="SEKOLAH KEBANGSAAN KAMPUNG SADEK">SEKOLAH KEBANGSAAN KAMPUNG SADEK</option>
+                                <option value="SEKOLAH JENIS KEBANGSAAN (TAMIL) LDG KATUMBA">SEKOLAH JENIS KEBANGSAAN (TAMIL) LDG KATUMBA</option>
+                                <option value="SEKOLAH KEBANGSAAN TAWAR">SEKOLAH KEBANGSAAN TAWAR</option>
+                                <option value="SEKOLAH MENENGAH KEBANGSAAN PARIT PANJANG">SEKOLAH MENENGAH KEBANGSAAN PARIT PANJANG</option>
+                                <option value="SEKOLAH KEBANGSAAN KUALA PEGANG">SEKOLAH KEBANGSAAN KUALA PEGANG</option>
+                                <option value="SEKOLAH MENENGAH KEBANGSAAN SYED ABU BAKAR">SEKOLAH MENENGAH KEBANGSAAN SYED ABU BAKAR</option>
+                                <option value="SEKOLAH MENENGAH AGAMA (ARAB) ANNAJAH">SEKOLAH MENENGAH AGAMA (ARAB) ANNAJAH</option>
+                                <option value="SEKOLAH JENIS KEBANGSAAN (TAMIL) LDG KUPANG">SEKOLAH JENIS KEBANGSAAN (TAMIL) LDG KUPANG</option>
+                                <option value="SEKOLAH KEBANGSAAN KAMPUNG PADANG">SEKOLAH KEBANGSAAN KAMPUNG PADANG</option>
+                                <option value="SEKOLAH KEBANGSAAN SERI INAS">SEKOLAH KEBANGSAAN SERI INAS</option>
+                                <option value="SEKOLAH MENENGAH KEBANGSAAN BAKAI">SEKOLAH MENENGAH KEBANGSAAN BAKAI</option>
+                                <option value="SEKOLAH JENIS KEBANGSAAN (CINA) CHIN HWA">SEKOLAH JENIS KEBANGSAAN (CINA) CHIN HWA</option>
+                                <option value="SEKOLAH KEBANGSAAN LANAI">SEKOLAH KEBANGSAAN LANAI</option>
+                                <option value="SEKOLAH KEBANGSAAN ULU TAWAR">SEKOLAH KEBANGSAAN ULU TAWAR</option>
+                                <option value="SEKOLAH KEBANGSAAN BINJUL DALAM">SEKOLAH KEBANGSAAN BINJUL DALAM</option>
+                                <option value="SEKOLAH JENIS KEBANGSAAN (TAMIL) LDG PELAM">SEKOLAH JENIS KEBANGSAAN (TAMIL) LDG PELAM</option>
+                                <option value="SEKOLAH KEBANGSAAN IBOI">SEKOLAH KEBANGSAAN IBOI</option>
+                                <option value="SEKOLAH KEBANGSAAN TIAK">SEKOLAH KEBANGSAAN TIAK</option>
+                                <option value="SEKOLAH KEBANGSAAN ULU BAKAI">SEKOLAH KEBANGSAAN ULU BAKAI</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="taskPic" class="block text-sm font-medium text-slate-700 mb-1">PIC (Person in Charge)</label>
+                            <select id="taskPic" name="taskPic" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500" required>
+                                <option value="" disabled selected>Pilih PIC</option>
+                                <option value="HUSSEIN BIN AHMAD">HUSSEIN BIN AHMAD</option>
+                                <option value="MOHAMAD FAUZI BIN ABDULLAH">MOHAMAD FAUZI BIN ABDULLAH</option>
+                                <option value="ZUHAIRIE BIN HASSAN">ZUHAIRIE BIN HASSAN</option>
+                                <option value="BAKRIZAL FAHMI BIN ABU BAKAR">BAKRIZAL FAHMI BIN ABU BAKAR</option>
+                                <option value="FARHAH ZAIDAR BINTI RAMLI">FARHAH ZAIDAR BINTI RAMLI</option>
+                                <option value="MAZLINA BINTI MD.YUSOF">MAZLINA BINTI MD.YUSOF</option>
+                                <option value="NOORSHAFAZILLAH BINTI AHMAD">NOORSHAFAZILLAH BINTI AHMAD</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="taskAssignment" class="block text-sm font-medium text-slate-700 mb-1">Tugasan</label>
+                            <textarea id="taskAssignment" name="taskAssignment" rows="3" placeholder="Terangkan tugasan di sini..." class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500" required></textarea>
+                        </div>
+                        <div>
+                            <label for="taskNotes" class="block text-sm font-medium text-slate-700 mb-1">Catatan</label>
+                            <textarea id="taskNotes" name="taskNotes" rows="2" placeholder="Catatan tambahan (jika ada)" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
+                        </div>
+                        <div>
+                            <button type="submit" id="submitBtn" class="w-full bg-gradient-to-r from-red-500 to-rose-500 text-white font-bold py-3 px-4 rounded-lg hover:from-red-600 hover:to-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2">
+                                <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                                <span>Tambah ke Kalendar</span>
+                            </button>
+                        </div>
+                    </form>
+                    <div id="form-error" class="text-red-600 text-sm mt-4 text-center font-semibold"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal untuk Papar Maklumat Tugasan -->
+    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center p-4">
+        <div id="modalContent" class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 relative animate-fade-in-up">
+            <button id="closeModalBtn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 transition-colors">
+                <i data-lucide="x-circle" class="w-7 h-7"></i>
+            </button>
+            <h3 class="text-2xl font-bold mb-4 border-b pb-2 text-slate-800" id="modalTitle">Maklumat Tugasan</h3>
+            <div class="space-y-4 text-slate-600" id="modalBody">
+                <!-- Kandungan maklumat akan diisi oleh JavaScript -->
+            </div>
+             <div id="modal-footer" class="mt-6 flex justify-end gap-3">
+                <!-- Butang padam akan diuruskan oleh JavaScript -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50"></div>
+
+
+    <script type="module">
+        // Import fungsi-fungsi Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Import Analytics jika perlu (anda masukkan ia dalam config)
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+
+        lucide.createIcons();
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Rujukan kepada elemen DOM
+            const taskForm = document.getElementById('taskForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const errorDiv = document.getElementById('form-error');
+            const prevMonthBtn = document.getElementById('prevMonthBtn');
+            const nextMonthBtn = document.getElementById('nextMonthBtn');
+            const monthYearEl = document.getElementById('monthYear');
+            const calendarGrid = document.getElementById('calendarGrid');
+            const taskModal = document.getElementById('taskModal');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const appContainer = document.getElementById('app-container');
+            const toastContainer = document.getElementById('toast-container');
+            const modalFooter = document.getElementById('modal-footer');
+
+            // State aplikasi
+            let tasks = [];
+            let currentDate = new Date();
+            
+            // Helper function to pad numbers (e.g., 1 -> "01")
+            const pad = (num) => String(num).padStart(2, '0');
+            
+            // --- KONFIGURASI FIREBASE ANDA TELAH DITAMPAL DI SINI ---
+            // Ini adalah 'kunci' yang anda berikan.
+            const firebaseConfig = {
+              apiKey: "AIzaSyBsUuTToMIEr1cele7Ov1eqR4mtZX2kRYM",
+              authDomain: "jadual-7d6bf.firebaseapp.com",
+              projectId: "jadual-7d6bf",
+              storageBucket: "jadual-7d6bf.firebasestorage.app", // Perbetulan: 'firebasestorage.app'
+              messagingSenderId: "466406198741",
+              appId: "1:466406198741:web:0f3bd8dad342e8034e015c",
+              measurementId: "G-HWZRW76PNC"
+            };
+            // --- TAMAT KONFIGURASI ---
+
+
+            // Inisialisasi Firebase
+            const app = initializeApp(firebaseConfig);
+            const db = getFirestore(app);
+            const auth = getAuth(app);
+            const analytics = getAnalytics(app); // Inisialisasi Analytics
+            
+            // Laluan (path) untuk pangkalan data awam anda.
+            // Data akan disimpan dalam koleksi bernama "tasks".
+            const tasksCollection = collection(db, "tasks"); 
+
+            // Logik Pengesahan Pengguna (Versi Awam)
+            try {
+                await signInAnonymously(auth);
+                console.log("Signed in anonymously (Public Version)");
+                listenForTasks(); // Mula mendengar data selepas pengesahan berjaya
+            } catch (error) {
+                console.error("Authentication error:", error);
+                showError("Gagal menyambung ke pangkalan data.");
+                loadingOverlay.style.display = 'none';
+            }
+            
+
+            const dayNames = ["Aha", "Isn", "Sel", "Rab", "Kha", "Jum", "Sab"];
+            
+            // Fungsi untuk memaparkan notifikasi (toast)
+            function showToast(message, type = 'success') {
+                const toast = document.createElement('div');
+                const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+                const icon = type === 'success' ? 'check-circle' : 'alert-circle';
+
+                toast.className = `toast-notification ${bgColor} text-white py-3 px-5 rounded-lg shadow-xl flex items-center gap-3`;
+                toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i><span>${message}</span>`;
+                
+                toastContainer.appendChild(toast);
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    toast.remove();
+                }, 4000);
+            }
+
+            function renderCalendar() {
+                calendarGrid.innerHTML = '';
+                
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+
+                const firstDayOfMonth = new Date(year, month, 1);
+                const lastDayOfMonth = new Date(year, month + 1, 0);
+                const lastDayOfPrevMonth = new Date(year, month, 0);
+
+                const firstDayIndex = firstDayOfMonth.getDay();
+                const lastDayIndex = lastDayOfMonth.getDay();
+                const numDays = lastDayOfMonth.getDate();
+
+                monthYearEl.textContent = `${firstDayOfMonth.toLocaleDateString('ms-MY', { month: 'long', year: 'numeric' })}`;
+
+                // Tambah tajuk hari
+                dayNames.forEach(day => {
+                    const dayHeader = document.createElement('div');
+                    dayHeader.className = 'font-bold text-center text-white/90 py-2';
+                    dayHeader.textContent = day;
+                    calendarGrid.appendChild(dayHeader);
+                });
+
+                // Sel kosong untuk hari sebelum bulan ini
+                for (let i = firstDayIndex; i > 0; i--) {
+                    const otherDayCell = document.createElement('div');
+                    otherDayCell.className = 'other-month-day rounded-md p-1';
+                    otherDayCell.innerHTML = `<span class="text-sm">${lastDayOfPrevMonth.getDate() - i + 1}</span>`;
+                    calendarGrid.appendChild(otherDayCell);
+                }
+
+                // Sel untuk setiap hari dalam bulan ini
+                for (let i = 1; i <= numDays; i++) {
+                    const dayDate = new Date(year, month, i);
+                    const dayOfWeek = dayDate.getDay();
+                    
+                    // --- PEMBETULAN RALAT ZON MASA ---
+                    // Bina rentetan YYYY-MM-DD secara manual untuk mengelakkan penukaran zon masa
+                    // 'month' adalah 0-indexed (Jan=0, Nov=10), jadi tambah 1
+                    const dateStr = `${year}-${pad(month + 1)}-${pad(i)}`;
+                    // --- TAMAT PEMBETULAN ---
+
+                    const tasksForDay = tasks.filter(task => task.date === dateStr);
+                    let tasksHtml = '';
+                    tasksForDay.forEach(task => {
+                        tasksHtml += `<div class="task-card bg-white/90 rounded-md shadow-sm border-l-4 border-red-500 mb-1 cursor-pointer hover:bg-red-100" data-task-id="${task.id}">
+                                        <p class="font-semibold truncate">${task.school}</p>
+                                      </div>`;
+                    });
+
+                    let dayClasses = 'calendar-day rounded-md p-1 flex flex-col';
+                    let slotHtml = '';
+                    
+                    if (dayOfWeek === 5 || dayOfWeek === 6) { // Jumaat atau Sabtu
+                        dayClasses += ' weekend-day';
+                    } else { // Hari bekerja
+                        dayClasses += ' cursor-pointer hover:bg-white/20';
+                        if (tasksForDay.length === 0) {
+                            dayClasses += ' empty-slot';
+                            slotHtml = `<div class="flex-grow flex items-center justify-center text-xs text-green-800 opacity-70">Kosong</div>`;
+                        }
+                    }
+
+                    const dayCell = document.createElement('div');
+                    dayCell.className = dayClasses;
+                    dayCell.innerHTML = `
+                        <span class="font-medium text-sm mb-1">${i}</span>
+                        <div class="flex-grow space-y-1">${tasksHtml}${slotHtml}</div>
+                    `;
+                    
+                    if (dayOfWeek !== 5 && dayOfWeek !== 6) {
+                        dayCell.addEventListener('click', (e) => {
+                            if (e.target.closest('.task-card')) return;
+                            
+                            document.getElementById('taskDate').value = dateStr;
+                            document.getElementById('form-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            setTimeout(() => document.getElementById('taskSchool').focus(), 300);
+                        });
+                    }
+                    calendarGrid.appendChild(dayCell);
+                }
+
+                // Sel kosong untuk hari selepas bulan ini
+                for (let i = 1; i <= 6 - lastDayIndex; i++) {
+                     const otherDayCell = document.createElement('div');
+                     otherDayCell.className = 'other-month-day rounded-md p-1';
+                     otherDayCell.innerHTML = `<span class="text-sm">${i}</span>`;
+                     calendarGrid.appendChild(otherDayCell);
+                }
+                lucide.createIcons();
+            }
+            
+            function listenForTasks() {
+                const q = query(tasksCollection);
+                onSnapshot(q, (querySnapshot) => {
+                    const firestoreTasks = [];
+                    querySnapshot.forEach((doc) => {
+                        firestoreTasks.push({ id: doc.id, ...doc.data() });
+                    });
+                    tasks = firestoreTasks;
+                    tasks.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    renderCalendar();
+                    loadingOverlay.style.display = 'none';
+                }, (error) => {
+                    console.error("Error listening for tasks:", error);
+                    showError("Gagal memuatkan data. Sila periksa sambungan internet anda.");
+                    loadingOverlay.style.display = 'none';
+                });
+            }
+
+            function openTaskModal(task) {
+                const modalBody = document.getElementById('modalBody');
+                modalBody.innerHTML = `
+                    <p><strong><i class="inline-block w-4 h-4 mr-2" data-lucide="calendar"></i>Tarikh:</strong> ${new Date(task.date + 'T00:00:00').toLocaleDateString('ms-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                    <p><strong><i class="inline-block w-4 h-4 mr-2" data-lucide="building-2"></i>Sekolah:</strong> ${task.school}</p>
+                    <p><strong><i class="inline-block w-4 h-4 mr-2" data-lucide="user-check"></i>PIC:</strong> ${task.pic}</p>
+                    <div><strong><i class="inline-block w-4 h-4 mr-2" data-lucide="clipboard-list"></i>Tugasan:</strong> <div class="mt-1 p-3 bg-slate-100 rounded-md text-sm">${task.assignment.replace(/\n/g, '<br>')}</div></div>
+                    <div><strong><i class="inline-block w-4 h-4 mr-2" data-lucide="file-text"></i>Catatan:</strong> <div class="mt-1 p-3 bg-slate-100 rounded-md text-sm">${task.notes ? task.notes.replace(/\n/g, '<br>') : '<em>Tiada catatan.</em>'}</div></div>
+                `;
+                
+                // Uruskan butang padam dengan pengesahan
+                showDeleteConfirmation(task);
+
+                taskModal.classList.remove('hidden');
+                lucide.createIcons();
+            }
+
+            function showDeleteConfirmation(task) {
+                modalFooter.innerHTML = `
+                    <button id="deleteBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Padam Tugasan
+                    </button>
+                `;
+                lucide.createIcons();
+
+                document.getElementById('deleteBtn').addEventListener('click', () => {
+                    modalFooter.innerHTML = `
+                        <span class="text-slate-600 font-semibold">Anda pasti?</span>
+                        <button id="cancelDeleteBtn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400">Batal</button>
+                        <button id="confirmDeleteBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Ya, Padam</button>
+                    `;
+                    
+                    document.getElementById('cancelDeleteBtn').addEventListener('click', () => showDeleteConfirmation(task));
+                    
+                    document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+                        const btn = document.getElementById('confirmDeleteBtn');
+                        btn.disabled = true;
+                        btn.innerHTML = 'Memadam...';
+
+                        try {
+                            await deleteDoc(doc(tasksCollection, task.id));
+                            taskModal.classList.add('hidden');
+                            showToast('Tugasan berjaya dipadam!');
+                        } catch (error) {
+                            console.error("Error removing document: ", error);
+                            showToast('Gagal memadam tugasan.', 'error');
+                            showDeleteConfirmation(task); // Reset butang
+                        }
+                    });
+                });
+            }
+
+            calendarGrid.addEventListener('click', (e) => {
+                const taskCard = e.target.closest('.task-card');
+                if (taskCard) {
+                    const taskId = taskCard.dataset.taskId;
+                    const task = tasks.find(t => t.id === taskId);
+                    if (task) {
+                        openTaskModal(task);
+                    }
+                }
+            });
+
+            taskForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                const dateValue = document.getElementById('taskDate').value;
+                const school = document.getElementById('taskSchool').value;
+                const pic = document.getElementById('taskPic').value;
+                const assignment = document.getElementById('taskAssignment').value;
+                const notes = document.getElementById('taskNotes').value;
+
+                if (!dateValue || !school || !pic || !assignment) {
+                    showError("Sila lengkapkan Tarikh, Sekolah, PIC, dan Tugasan.");
+                    return;
+                }
+                
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-5 w-5 mr-2" style="border-top-color: white;"></span> Menyimpan...';
+
+                try {
+                    await addDoc(tasksCollection, { date: dateValue, school, pic, assignment, notes });
+                    taskForm.reset();
+                    clearError();
+                    showToast('Tugasan berjaya ditambah!');
+                } catch(error) {
+                    console.error("Error adding document: ", error);
+                    showError("Gagal menyimpan tugasan. Sila cuba lagi.");
+                    showToast('Gagal menyimpan tugasan.', 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i data-lucide="plus-circle" class="w-5 h-5"></i><span>Tambah ke Kalendar</span>';
+                    lucide.createIcons();
+                }
+            });
+            
+            prevMonthBtn.addEventListener('click', () => {
+                currentDate.setMonth(currentDate.getMonth() - 1);
+                renderCalendar();
+            });
+
+            nextMonthBtn.addEventListener('click', () => {
+                currentDate.setMonth(currentDate.getMonth() + 1);
+                renderCalendar();
+            });
+
+            closeModalBtn.addEventListener('click', () => taskModal.classList.add('hidden'));
+            taskModal.addEventListener('click', (e) => { if (e.target === taskModal) taskModal.classList.add('hidden'); });
+
+            function showError(message) {
+                errorDiv.textContent = message;
+                setTimeout(clearError, 4000);
+            }
+
+            function clearError() { errorDiv.textContent = ''; }
+        });
+    </script>
+</body>
+</html>
